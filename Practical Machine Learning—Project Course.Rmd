@@ -1,0 +1,126 @@
+---
+title: "Practical Machine Learning—Project Course"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading libraries 
+
+
+
+```{r comment = "", warning=FALSE, message=FALSE}
+
+library(rpart.plot)
+library(caret)
+
+set.seed(12345)
+```
+
+# Data Importing
+
+```{r pressure, comment = ""}
+
+train_d <- read.csv('pml-training.csv', header = TRUE)
+val_test <- read.csv('pml-testing.csv', header = TRUE)
+  
+
+```
+
+## Data Partitioning  
+
+```{r}
+
+
+
+inTrain <- createDataPartition(y = train_d$classe, 
+                               p = 0.6, 
+                               list = FALSE)
+
+training <- train_d[inTrain, ]; testing <- train_d[-inTrain, ]
+dim(training); dim(testing)
+
+```
+
+# Data Cleaning 
+
+## Identify and remove near zero variable from training dataset
+
+``` {r}
+
+nzv_mat <- nearZeroVar(training, saveMetrics = TRUE)
+
+var_names <- rownames(nzv_mat[nzv_mat$nzv == TRUE,])
+
+nzv_var <- names(training) %in% var_names
+
+
+training <- training[!nzv_var]
+
+dim(training)
+
+# removing the first columns as it is not relevant to the analysis
+training <- training[c(-1)]
+```
+
+## Omitting variables containing  more than 70% NAs
+
+```{r }
+
+newTraining <- training #creating another subset to iterate in loop
+
+for(i in 1:length(training)) { 
+  if( sum( is.na( training[, i] ) ) /nrow(training) >= .7 ) { #if n?? NAs > 60% of total observations
+    for(j in 1:length(newTraining)) {
+      if( length( grep(names(training[i]), names(newTraining)[j]) ) ==1)  { #if the columns are the same:
+        newTraining <- newTraining[ , -j] #Remove that column
+      }   
+    } 
+  }
+}
+
+
+
+
+training <- newTraining
+```
+
+We need to apply the same transformation to testing and validating sets
+
+```{r}
+
+cln_names <- colnames(training)
+
+testing <- testing[cln_names]
+
+```
+
+
+# Fittinga a classification model
+
+```{r}
+
+# Fitting models 
+
+clas.mod <- rpart(classe ~ ., data = training, method = "class")
+# fancyRpartPlot(clas.mod)
+
+```
+
+## Apply the model to the testing dataset and produce a confusion matrix
+
+```{r}
+clas.pred<- predict(clas.mod, testing, type = "class")
+
+confusionMatrix(clas.pred, as.factor(testing$classe))
+
+```
+
+## Predict 20 different cases from the validation set
+```{r}
+
+pred <- predict(clas.mod, val_test[cln_names[-58]], type = 'class')
+print(pred)
+```
